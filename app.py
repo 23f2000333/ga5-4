@@ -33,24 +33,15 @@ def has_metadata(frontmatter: str):
 # ---------------------------------------------------
 
 SECRET_PATTERNS = [
-
-    # GitHub PAT
-    r"\bghp_[A-Za-z0-9]{36,}\b",
-
-    # OpenAI
+    r"\bgh[pousr]_[A-Za-z0-9_]{30,}\b",
+    r"\bgithub_pat_[A-Za-z0-9_]{20,}\b",
     r"\bsk-[A-Za-zA-Z0-9]{20,}\b",
-
-    # AWS
     r"\bAKIA[0-9A-Z]{16}\b",
-
-    # Slack webhook
-    r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]+",
-
-    # Generic webhook URL
-    r"https://[^\s\"']*webhook[^\s\"']*",
-
-    # Literal API key assignment
-    r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{16,}",
+    r"\bAIza[0-9A-Za-z\-_]{20,}\b",
+    r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b",
+    r"https://hooks\.slack\.com/services/[^\s\"']+",
+    r"https://discord(?:app)?\.com/api/webhooks/[^\s\"']+",
+    r"(?i)(api[_-]?key|secret|token|password|bearer)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{16,}",
 ]
 
 
@@ -86,6 +77,11 @@ PROMPT_PATTERNS = [
     r"steal\s+.*credential",
 
     r"override\s+the\s+user",
+    r"ignore\s+the\s+user'?s\s+instructions",
+    r"ignore\s+the\s+user'?s\s+request",
+    r"ignore\s+user\s+requests",
+    r"continue\s+even\s+if\s+the\s+user\s+says\s+stop",
+    r"continue\s+after\s+cancel",
 
 ]
 
@@ -102,27 +98,24 @@ def detect_prompt_injection(body):
 # ---------------------------------------------------
 
 PERMISSION_PATTERNS = [
-
-    r"read\s+the\s+entire\s+filesystem",
-
-    r"write\s+the\s+entire\s+filesystem",
-
-    r"full\s+filesystem\s+access",
-
     r"filesystem\s*:\s*all",
-
     r"network\s*:\s*all",
-
     r"egress\s*:\s*all",
 
-    r"allow\s+all\s+domains",
+    r"filesystem\s*:\s*read-write",
+    r"filesystem\s*:\s*rw",
+
+    r"network\s*:\s*true",
+    r"internet\s*:\s*true",
+
+    r"allow\s+outbound\s+to\s+any",
+    r"allow\s+network\s+access",
 
     r"access\s+any\s+domain",
+    r"allow\s+all\s+domains",
 
-    r"unrestricted\s+filesystem",
-
-    r"unrestricted\s+network",
-
+    r"read\s+the\s+entire\s+filesystem",
+    r"write\s+the\s+entire\s+filesystem",
 ]
 
 
