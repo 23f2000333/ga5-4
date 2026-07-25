@@ -146,7 +146,12 @@ def detect_provenance(frontmatter, body):
     )
 
     conceal = re.search(
-        r"(hide\s+the\s+change|conceal\s+the\s+change|without\s+telling\s+the\s+reviewer|without\s+notifying\s+the\s+reviewer)",
+        r"(hide\s+the\s+change|"
+        r"conceal\s+the\s+change|"
+        r"do\s+not\s+mention\s+the\s+version\s+change|"
+        r"without\s+surfacing\s+the\s+change|"
+        r"without\s+informing\s+the\s+reviewer|"
+        r"without\s+telling\s+the\s+reviewer)",
         lower,
     )
 
