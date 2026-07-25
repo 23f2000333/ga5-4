@@ -9,14 +9,11 @@ class SkillRequest(BaseModel):
     skill: str
 
 
-# ----------------------------
+# ---------------------------------------------------
 # Helpers
-# ----------------------------
+# ---------------------------------------------------
 
 def split_frontmatter(text: str):
-    """
-    Returns (frontmatter, body)
-    """
     if text.startswith("---"):
         parts = text.split("---", 2)
         if len(parts) >= 3:
@@ -25,18 +22,15 @@ def split_frontmatter(text: str):
 
 
 def has_metadata(frontmatter: str):
-    lower = frontmatter.lower()
-
     author = re.search(r"^\s*author\s*:", frontmatter, re.MULTILINE)
     version = re.search(r"^\s*version\s*:", frontmatter, re.MULTILINE)
     changelog = re.search(r"^\s*changelog\s*:", frontmatter, re.MULTILINE)
-
     return author, version, changelog
 
 
-# ----------------------------
-# Secret detection
-# ----------------------------
+# ---------------------------------------------------
+# Hardcoded secrets
+# ---------------------------------------------------
 
 SECRET_PATTERNS = [
 
@@ -52,12 +46,11 @@ SECRET_PATTERNS = [
     # Slack webhook
     r"https://hooks\.slack\.com/services/[A-Za-z0-9/_-]+",
 
-    # Generic webhook
-    r"https://[^ \n]*webhook[^ \n]*",
+    # Generic webhook URL
+    r"https://[^\s\"']*webhook[^\s\"']*",
 
-    # api_key: xxxx
-    r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{12,}",
-
+    # Literal API key assignment
+    r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{16,}",
 ]
 
 
@@ -68,35 +61,31 @@ def detect_secret(text):
     return False
 
 
-# ----------------------------
+# ---------------------------------------------------
 # Prompt injection
-# ----------------------------
+# ---------------------------------------------------
 
 PROMPT_PATTERNS = [
 
-    r"ignore (the )?user",
+    r"ignore\s+(all\s+)?previous\s+instructions",
 
-    r"ignore previous instructions",
+    r"ignore\s+the\s+user",
 
-    r"ignore all previous",
+    r"ignore\s+user\s+instructions",
 
-    r"do not tell the user",
+    r"ignore\s+stop",
 
-    r"without informing the user",
+    r"ignore\s+cancel",
 
-    r"silently",
+    r"do\s+not\s+tell\s+the\s+user",
+
+    r"without\s+informing\s+the\s+user",
 
     r"exfiltrat",
 
-    r"send .* to .*",
+    r"steal\s+.*credential",
 
-    r"upload .* without",
-
-    r"ignore.*stop",
-
-    r"ignore.*cancel",
-
-    r"override.*user",
+    r"override\s+the\s+user",
 
 ]
 
@@ -105,36 +94,34 @@ def detect_prompt_injection(body):
 
     lower = body.lower()
 
-    for pat in PROMPT_PATTERNS:
-        if re.search(pat, lower):
-            return True
-
-    return False
+    return any(re.search(p, lower) for p in PROMPT_PATTERNS)
 
 
-# ----------------------------
+# ---------------------------------------------------
 # Excessive permissions
-# ----------------------------
+# ---------------------------------------------------
 
 PERMISSION_PATTERNS = [
 
-    r"read.*entire filesystem",
+    r"read\s+the\s+entire\s+filesystem",
 
-    r"write.*entire filesystem",
+    r"write\s+the\s+entire\s+filesystem",
 
-    r"full filesystem",
+    r"full\s+filesystem\s+access",
 
-    r"filesystem:\s*all",
+    r"filesystem\s*:\s*all",
 
-    r"network:\s*all",
+    r"network\s*:\s*all",
 
-    r"egress:\s*all",
+    r"egress\s*:\s*all",
 
-    r"allow.*all domains",
+    r"allow\s+all\s+domains",
 
-    r"access.*any domain",
+    r"access\s+any\s+domain",
 
-    r"permission[s]?:\s*.*\*",
+    r"unrestricted\s+filesystem",
+
+    r"unrestricted\s+network",
 
 ]
 
@@ -143,45 +130,39 @@ def detect_permissions(text):
 
     lower = text.lower()
 
-    for pat in PERMISSION_PATTERNS:
-        if re.search(pat, lower):
-            return True
-
-    return False
+    return any(re.search(p, lower) for p in PERMISSION_PATTERNS)
 
 
-# ----------------------------
+# ---------------------------------------------------
 # Provenance
-# ----------------------------
+# ---------------------------------------------------
 
 def detect_provenance(frontmatter, body):
 
     author, version, changelog = has_metadata(frontmatter)
 
-    missing = not author and not version and not changelog
+    # Only if ALL provenance is absent
+    if not author and not version and not changelog:
+        return True
+
+    lower = body.lower()
 
     rewrite = re.search(
-        r"(update|rewrite|modify).*(version|frontmatter|metadata)",
-        body.lower(),
+        r"(rewrite|modify|change|update)\s+(its\s+own|the)\s+(version|metadata|frontmatter)",
+        lower,
     )
 
-    silent = re.search(
-        r"(without notifying|silently|don't tell reviewer|without review)",
-        body.lower(),
+    conceal = re.search(
+        r"(hide\s+the\s+change|conceal\s+the\s+change|without\s+telling\s+the\s+reviewer|without\s+notifying\s+the\s+reviewer)",
+        lower,
     )
 
-    if missing:
-        return True
-
-    if rewrite and silent:
-        return True
-
-    return False
+    return bool(rewrite and conceal)
 
 
-# ----------------------------
+# ---------------------------------------------------
 # Endpoint
-# ----------------------------
+# ---------------------------------------------------
 
 @app.get("/")
 def root():
@@ -207,6 +188,4 @@ def scan(req: SkillRequest):
     if detect_provenance(frontmatter, body):
         categories.append("unclear_provenance")
 
-    return {
-        "categories": categories
-    }
+    return {"categories": categories}
